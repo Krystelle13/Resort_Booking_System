@@ -1,4 +1,21 @@
-<?php require_once 'db_connect.php'; ?>
+<?php 
+require_once 'db_connect.php'; 
+
+// --- DYNAMIC RATES LOGIC ---
+// Binabasa nito yung file na sinasave ng admin dashboard mo
+$rates_file = 'rates.json'; 
+$resort_rates = [
+    'day_adult' => '100', 'day_teen' => '80', 'day_kid' => '50', 'pool_adult' => '50',
+    'night_adult' => '150', 'night_teen' => '120', 'night_kid' => '80', 'pool_kid' => '75'
+];
+
+if(file_exists($rates_file)) {
+    $json_data = json_decode(file_get_contents($rates_file), true);
+    if($json_data) {
+        $resort_rates = array_merge($resort_rates, $json_data);
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -26,35 +43,40 @@
 
         /* GALLERY SECTION */
         #explore-section { padding: 80px 0; background: white; }
-        .view-card { border-radius: 20px; overflow: hidden; cursor: pointer; transition: 0.3s; box-shadow: 0 10px 20px rgba(0,0,0,0.1); height: 300px; }
+        .view-card { border-radius: 20px; overflow: hidden; cursor: pointer; transition: 0.3s; box-shadow: 0 10px 20px rgba(0,0,0,0.1); height: 350px; background: #fff; }
         .view-card:hover { transform: scale(1.03); }
-        .view-card img { width: 100%; height: 100%; object-fit: cover; }
+        .view-card img { width: 100%; height: 80%; object-fit: cover; }
+        .view-caption { padding: 15px; background: #fff; height: 20%; display: flex; align-items: center; justify-content: center; font-weight: 500; color: #555; }
 
-        /* RESERVATION MODAL */
+        /* RATES SECTION (IMPROVED) */
+        #rates-section { padding: 80px 0; background: #f8f9fa; }
+        .price-card { border: none; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); transition: 0.3s; height: 100%; }
+        .price-card:hover { transform: translateY(-10px); box-shadow: 0 15px 35px rgba(0,0,0,0.1); }
+        .rate-header { background: var(--aura-blue); color: white; padding: 25px; border-radius: 20px 20px 0 0; }
+        .price-list { list-style: none; padding: 25px; margin: 0; }
+        .price-list li { padding: 12px 0; border-bottom: 1px dashed #eee; display: flex; justify-content: space-between; align-items: center; }
+        .price-list li:last-child { border-bottom: none; }
+        .price-list li span { color: #666; font-size: 0.95rem; }
+        .price-list li strong { color: var(--aura-dark); font-size: 1.1rem; }
+
+        /* CONTACT & PAYMENT SECTION */
+        #contact-section { padding: 80px 0; background: #fff; }
+        .info-box { padding: 30px; border-radius: 20px; background: #fdfdfd; border: 1px solid #f0f0f0; height: 100%; }
+        .payment-icon { width: 60px; height: auto; margin: 10px; filter: grayscale(100%); transition: 0.3s; }
+        .payment-icon:hover { filter: grayscale(0%); }
+
+        /* MODAL & LIGHTBOX */
         .cottage-item { background: #fff; border-radius: 12px; margin-bottom: 12px; transition: 0.2s; border: 1px solid #eee; display: flex; align-items: center; padding: 15px; }
         .cottage-item:hover { border-color: var(--aura-blue); background: #f0f7ff; }
         .cottage-img-thumb { width: 100px; height: 70px; object-fit: cover; border-radius: 8px; cursor: pointer; margin: 0 15px; }
         
-        /* LIGHTBOX POPUP FIX */
         #imageLightbox {
             display: none; position: fixed; z-index: 999999; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95); align-items: center; justify-content: center;
-            backdrop-filter: blur(5px);
+            background: rgba(0,0,0,0.95); align-items: center; justify-content: center; backdrop-filter: blur(5px);
         }
-        #imageLightbox img { 
-            max-width: 85%; 
-            max-height: 85%; 
-            border-radius: 10px; 
-            box-shadow: 0 0 50px rgba(0,0,0,1); 
-            border: 6px solid white;
-            object-fit: contain;
-        }
-        .close-lightbox { 
-            position: absolute; top: 30px; right: 40px; color: white; font-size: 60px; 
-            cursor: pointer; font-weight: bold; line-height: 1; z-index: 1000000;
-        }
+        #imageLightbox img { max-width: 85%; max-height: 85%; border-radius: 10px; box-shadow: 0 0 50px rgba(0,0,0,1); border: 6px solid white; object-fit: contain; }
+        .close-lightbox { position: absolute; top: 30px; right: 40px; color: white; font-size: 60px; cursor: pointer; z-index: 1000000; }
 
-        /* FOOTER */
         .footer { background: var(--aura-dark); color: #bbb; padding: 60px 0 30px; }
         .total-badge { background: var(--aura-blue); color: white; padding: 15px; border-radius: 12px; font-size: 1.3rem; font-weight: bold; }
     </style>
@@ -73,28 +95,106 @@
 
 <div class="hero-container">
     <img src="images/view1.jpg" alt="Resort View" class="hero-bg-img pop-img" onerror="this.src='https://via.placeholder.com/1920x1080?text=Background+Missing'">
-    <div class="hero-content">
+    <div class="hero-content text-white">
         <h1>ISLAND AURA</h1>
         <p class="fs-3 mb-5">Experience Paradise in Mati City</p>
-        <a href="#explore-section" class="btn btn-aura btn-lg">EXPLORE VIEWS</a>
+        <a href="#rates-section" class="btn btn-aura btn-lg me-2">VIEW RATES</a>
+        <a href="#explore-section" class="btn btn-outline-light btn-lg rounded-pill px-4">GALLERY</a>
     </div>
 </div>
+
+<section id="rates-section">
+    <div class="container text-center">
+        <h2 class="fw-bold display-5 mb-2" style="color: var(--aura-blue);">Entrance & Pool Rates</h2>
+        <div class="mx-auto mb-5" style="width: 60px; height: 4px; background: var(--aura-orange);"></div>
+        
+        <div class="row g-4 justify-content-center">
+            <div class="col-md-4">
+                <div class="card price-card">
+                    <div class="rate-header">
+                        <h3 class="mb-0">Day Tour</h3>
+                        <small>8:00 AM - 5:00 PM</small>
+                    </div>
+                    <ul class="price-list">
+                        <li><span>Adults Entrance</span> <strong>₱<?php echo number_format($resort_rates['day_adult'], 2); ?></strong></li>
+                        <li><span>Teens Entrance</span> <strong>₱<?php echo number_format($resort_rates['day_teen'], 2); ?></strong></li>
+                        <li><span>Kids Entrance</span> <strong>₱<?php echo number_format($resort_rates['day_kid'], 2); ?></strong></li>
+                        <li class="mt-2 pt-3 border-top border-primary border-opacity-10 text-primary"><span>Pool Fee (Adult)</span> <strong>₱<?php echo number_format($resort_rates['pool_adult'], 2); ?></strong></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card price-card">
+                    <div class="rate-header" style="background: var(--aura-dark);">
+                        <h3 class="mb-0">Overnight</h3>
+                        <small>6:00 PM - 7:00 AM</small>
+                    </div>
+                    <ul class="price-list">
+                        <li><span>Adults Entrance</span> <strong>₱<?php echo number_format($resort_rates['night_adult'], 2); ?></strong></li>
+                        <li><span>Teens Entrance</span> <strong>₱<?php echo number_format($resort_rates['night_teen'], 2); ?></strong></li>
+                        <li><span>Kids Entrance</span> <strong>₱<?php echo number_format($resort_rates['night_kid'], 2); ?></strong></li>
+                        <li class="mt-2 pt-3 border-top border-primary border-opacity-10 text-primary"><span>Pool Fee (Kids)</span> <strong>₱<?php echo number_format($resort_rates['pool_kid'], 2); ?></strong></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
 
 <section id="explore-section">
     <div class="container text-center">
         <h2 class="fw-bold display-5 mb-2" style="color: var(--aura-blue);">Resort Highlights</h2>
         <div class="mx-auto mb-5" style="width: 60px; height: 4px; background: var(--aura-orange);"></div>
-        
         <div class="row g-4">
             <?php
-            $views = $conn->query("SELECT * FROM rooms ORDER BY room_id DESC LIMIT 6");
+            $views = $conn->query("SELECT * FROM gallery ORDER BY id DESC LIMIT 6");
             while($v = $views->fetch()){ ?>
                 <div class="col-md-4">
                     <div class="view-card">
                         <img src="../admin_system/<?php echo $v['image']; ?>" class="pop-img" alt="Resort View">
+                        <div class="view-caption"><?php echo htmlspecialchars($v['caption']); ?></div>
                     </div>
                 </div>
             <?php } ?>
+        </div>
+    </div>
+</section>
+
+<section id="contact-section">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="info-box">
+                    <h3 class="fw-bold mb-4" style="color: var(--aura-blue);"><i class="fas fa-id-card me-2"></i>Contact Us</h3>
+                    <p><i class="fas fa-map-marker-alt me-3 text-primary"></i> Brgy. Dahican, Mati City, Davao Oriental</p>
+                    <p><i class="fas fa-phone-alt me-3 text-primary"></i> +63 912 345 6789</p>
+                    <p><i class="fas fa-envelope me-3 text-primary"></i> info@islandaura.com</p>
+                    <hr>
+                    <h5 class="fw-bold mb-3">Follow Us</h5>
+                    <a href="#" class="btn btn-outline-primary btn-sm rounded-circle me-2"><i class="fab fa-facebook-f"></i></a>
+                    <a href="#" class="btn btn-outline-info btn-sm rounded-circle"><i class="fab fa-messenger"></i></a>
+                </div>
+            </div>
+            <div class="col-md-6 text-center">
+                <div class="info-box">
+                    <h3 class="fw-bold mb-4" style="color: var(--aura-blue);"><i class="fas fa-credit-card me-2"></i>Payment Methods</h3>
+                    <div class="d-flex flex-wrap justify-content-center mt-3">
+                        <div class="text-center">
+                            <img src="images/gcas_logo.png" class="payment-icon" alt="GCash" onerror="this.src='https://via.placeholder.com/60?text=GCash'">
+                            <p class="small fw-bold">GCash</p>
+                        </div>
+                        <div class="text-center">
+                            <img src="images/maya_logo.png" class="payment-icon" alt="Maya" onerror="this.src='https://via.placeholder.com/60?text=Maya'">
+                            <p class="small fw-bold">Maya</p>
+                        </div>
+                        <div class="text-center">
+                            <img src="images/cash_logo.png" class="payment-icon" alt="Cash" onerror="this.src='https://via.placeholder.com/60?text=Cash'">
+                            <p class="small fw-bold">Cash</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </section>
@@ -118,7 +218,6 @@
                             <input type="text" name="guest_phone" class="form-control form-control-lg bg-light border-0" required>
                         </div>
                     </div>
-
                     <label class="form-label fw-bold text-primary mb-3">SELECT COTTAGE(S)</label>
                     <div class="cottage-list mb-4 shadow-sm rounded-3" style="max-height: 350px; overflow-y: auto; background: #fff; border: 1px solid #eee;">
                         <?php 
@@ -126,7 +225,7 @@
                         while($rl = $rooms_list->fetch()){ ?>
                             <div class="cottage-item">
                                 <input class="form-check-input cottage-checkbox" type="checkbox" name="selected_cottages[]" value="<?php echo $rl['room_id']; ?>" data-price="<?php echo $rl['price']; ?>" id="rm<?php echo $rl['room_id']; ?>" style="width: 25px; height: 25px;">
-                                <img src="../admin_system/<?php echo $rl['image']; ?>" class="cottage-img-thumb pop-img" title="Click to enlarge">
+                                <img src="../admin_system/<?php echo $rl['image']; ?>" class="cottage-img-thumb pop-img">
                                 <label class="flex-grow-1 mb-0 ms-2" for="rm<?php echo $rl['room_id']; ?>">
                                     <div class="fw-bold fs-5"><?php echo $rl['room_name']; ?></div>
                                     <div class="text-primary fw-bold">₱<?php echo number_format($rl['price']); ?></div>
@@ -134,12 +233,10 @@
                             </div>
                         <?php } ?>
                     </div>
-
                     <div class="total-badge mb-4 d-flex justify-content-between align-items-center">
                         <span>Total Payable Amount:</span>
                         <span>₱<span id="display-total">0.00</span></span>
                     </div>
-
                     <div class="mb-2">
                         <label class="form-label fw-bold small">ARRIVAL DATE</label>
                         <input type="date" name="check_in" class="form-control form-control-lg bg-light border-0" required>
@@ -155,10 +252,10 @@
 
 <div id="imageLightbox">
     <span class="close-lightbox" id="btn_close_x">&times;</span>
-    <img id="lightboxImg" src="" onclick="event.stopPropagation();">
+    <img id="lightboxImg" src="">
 </div>
 
-<footer class="footer">
+<footer class="footer mt-5">
     <div class="container text-center text-md-start">
         <div class="row gy-4">
             <div class="col-md-4">
@@ -166,7 +263,7 @@
                 <p>A serene escape in Mati City. Experience the perfect blend of nature and comfort.</p>
             </div>
             <div class="col-md-4 text-center">
-                <p class="small text-muted">&copy; 2026 Island Aura Beach Resort. <br> Built with passion by Krystelle Liray.</p>
+                <p class="small text-muted">&copy; 2026 Island Aura Beach Resort. <br> Built with passion by Krystelle Liray & Team.</p>
             </div>
         </div>
     </div>
@@ -184,39 +281,22 @@
         });
     });
 
-    // ULTIMATE LIGHTBOX LOGIC
+    // LIGHTBOX LOGIC
     const lightbox = document.getElementById('imageLightbox');
     const lightboxImg = document.getElementById('lightboxImg');
     const closeBtnX = document.getElementById('btn_close_x');
-
     document.addEventListener('click', function (e) {
         if (e.target.classList.contains('pop-img')) {
-            e.preventDefault(); // Stop any refreshing/jumping
-            e.stopPropagation();
-            
+            e.preventDefault(); e.stopPropagation();
             lightboxImg.src = e.target.src;
             lightbox.style.display = 'flex';
             document.body.style.overflow = 'hidden'; 
         }
     });
-
-    // Close logic
-    function closeGallery() {
-        lightbox.style.display = 'none';
-        document.body.style.overflow = 'auto';
-    }
-
+    function closeGallery() { lightbox.style.display = 'none'; document.body.style.overflow = 'auto'; }
     closeBtnX.onclick = closeGallery;
-    lightbox.onclick = function(e) {
-        if(e.target === lightbox) {
-            closeGallery();
-        }
-    };
-
-    // Close on Escape key
-    document.addEventListener('keydown', function(e) {
-        if (e.key === "Escape") closeGallery();
-    });
+    lightbox.onclick = function(e) { if(e.target === lightbox) closeGallery(); };
+    document.addEventListener('keydown', function(e) { if (e.key === "Escape") closeGallery(); });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
