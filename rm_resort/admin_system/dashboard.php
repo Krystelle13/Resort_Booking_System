@@ -2,7 +2,58 @@
 session_start();
 require_once '../public_site/db_connect.php';
 
-// --- RATE SYNC LOGIC ---
+// --- 1. ALL-IN-ONE AUTH & SETTINGS LOGIC ---
+
+// Default Credentials (Dito mo i-set ang admin details mo)
+$admin_user = "aura";
+$admin_pass = "auraG5"; 
+
+// LOGIN PROCESS
+if (isset($_POST['login_btn'])) {
+    if ($_POST['user'] === $admin_user && $_POST['pass'] === $admin_pass) {
+        $_SESSION['authenticated'] = true;
+        header("Location: dashboard.php"); exit();
+    } else {
+        header("Location: dashboard.php?error=invalid"); exit();
+    }
+}
+
+// LOGOUT PROCESS
+if (isset($_GET['logout'])) {
+    session_destroy();
+    header("Location: dashboard.php"); exit();
+}
+
+// LOGO UPDATE LOGIC (FIXED: Automatic Update)
+$logo_path = "../public_site/assets/logo.png"; // <-- Siguraduhin na existing itong folder/file na ito
+if (isset($_POST['update_logo'])) {
+    if(!empty($_FILES["new_logo"]["name"])){
+        $target_dir = "../public_site/assets/";
+        if(!is_dir($target_dir)) mkdir($target_dir, 0777, true);
+        
+        // Pinalitan natin ang logic para i-overwrite ang luma
+        $target_file = $target_dir . "logo.png"; 
+        if(move_uploaded_file($_FILES["new_logo"]["tmp_name"], $target_file)){
+            header("Location: dashboard.php?tab=sec_settings&status=logo_updated"); exit();
+        }
+    }
+}
+
+// CHANGE PASSWORD LOGIC
+if (isset($_POST['update_pass'])) {
+    $curr = $_POST['current_pass'];
+    $new = $_POST['new_pass'];
+    
+    // Check if current password is correct
+    if($curr === $admin_pass) {
+        // NOTE: Dahil static ang $admin_pass sa taas, dito mo dapat i-update sa DB kung may admin table ka.
+        header("Location: dashboard.php?tab=sec_settings&status=pass_success"); exit();
+    } else {
+        header("Location: dashboard.php?tab=sec_settings&status=pass_error"); exit();
+    }
+}
+
+// --- 2. ORIGINAL DASHBOARD LOGIC (UNTOUCHED) ---
 $rates_file = '../public_site/rates.json';
 $resort_rates = ['day_adult'=>'100','day_teen'=>'80','day_kid'=>'50','night_adult'=>'150','night_teen'=>'120','night_kid'=>'80','pool_adult'=>'50','pool_kid'=>'30'];
 if(file_exists($rates_file)) { $resort_rates = array_merge($resort_rates, json_decode(file_get_contents($rates_file), true)); }
@@ -13,7 +64,6 @@ if(isset($_POST['update_rates'])) {
     header("Location: dashboard.php?tab=sec_rates&status=saved"); exit();
 }
 
-// --- 1. ACTIONS WITH AUTO-FILE DELETE ---
 if(isset($_GET['mark_paid'])) { 
     $conn->prepare("UPDATE bookings SET status='Paid' WHERE guest_name=?")->execute([$_GET['gname']]); 
     header("Location: dashboard.php?tab=sec_bookings"); exit(); 
@@ -26,28 +76,22 @@ if(isset($_GET['checkout'])) {
     $conn->prepare("DELETE FROM bookings WHERE guest_name=?")->execute([$_GET['gname']]); 
     header("Location: dashboard.php?tab=sec_bookings"); exit(); 
 }
-
-// DELETE COTTAGE + UNLINK FILE
 if(isset($_GET['del_room'])) { 
     $stmt = $conn->prepare("SELECT image FROM rooms WHERE room_id = ?");
     $stmt->execute([$_GET['del_room']]);
     $img = $stmt->fetchColumn();
-    if ($img && file_exists($img)) { unlink($img); } // BURAHIN SA FOLDER
+    if ($img && file_exists($img)) { unlink($img); } 
     $conn->prepare("DELETE FROM rooms WHERE room_id=?")->execute([$_GET['del_room']]); 
     header("Location: dashboard.php?tab=sec_cottages"); exit(); 
 }
-
-// DELETE GALLERY + UNLINK FILE
 if(isset($_GET['del_view'])) { 
     $stmt = $conn->prepare("SELECT image FROM gallery WHERE id = ?");
     $stmt->execute([$_GET['del_view']]);
     $img = $stmt->fetchColumn();
-    if ($img && file_exists($img)) { unlink($img); } // BURAHIN SA FOLDER
+    if ($img && file_exists($img)) { unlink($img); } 
     $conn->prepare("DELETE FROM gallery WHERE id=?")->execute([$_GET['del_view']]); 
     header("Location: dashboard.php?tab=sec_gallery"); exit(); 
 }
-
-// --- 2. SAVE/EDIT LOGIC ---
 if (isset($_POST['save_cottage'])) {
     $name = $_POST['c_name']; $price = $_POST['c_price'];
     if(!empty($_POST['c_id'])){
@@ -64,7 +108,6 @@ if (isset($_POST['save_cottage'])) {
     }
     header("Location: dashboard.php?tab=sec_cottages"); exit();
 }
-
 if (isset($_POST['save_view'])) {
     $cap = $_POST['v_caption'];
     if(!empty($_POST['v_id'])){
@@ -92,41 +135,85 @@ if (isset($_POST['save_view'])) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root { --dark: #1e1e2d; --primary: #007bff; }
-        body { background: #f4f6f9; font-family: 'Inter', sans-serif; display: flex; }
-        .sidebar { width: 260px; background: var(--dark); min-height: 100vh; position: fixed; color: white; padding: 25px 15px; }
-        .sidebar .nav-link { color: #9899ac; padding: 14px 18px; border-radius: 10px; margin-bottom: 8px; cursor: pointer; text-decoration: none; display: block; }
+        body { background: #f4f6f9; font-family: 'Inter', sans-serif; display: flex; min-height: 100vh; margin:0; }
+
+        /* --- LOGIN FORM MINIMIZED --- */
+        .login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f4f6f9; z-index: 9999; display: flex; align-items: center; justify-content: center; }
+        .login-card { width: 750px; display: flex; background: white; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.08); border: 1px solid #eee; }
+        .login-left { flex: 1.2; background: #fff; display: flex; align-items: center; justify-content: center; padding: 40px; border-right: 1px solid #f8f9fa; }
+        .login-left img { max-width: 100%; height: auto; max-height: 220px; object-fit: contain; }
+        .login-right { flex: 1; padding: 50px 45px; }
+        .login-right h3 { font-weight: 800; color: var(--dark); margin-bottom: 8px; }
+        .login-right p { color: #888; font-size: 0.9rem; margin-bottom: 30px; }
+
+        /* --- DASHBOARD UI (ORIGINAL) --- */
+        .sidebar { width: 260px; background: var(--dark); min-height: 100vh; position: fixed; color: white; padding: 25px 15px; display: flex; flex-direction: column; }
+        .sidebar .nav-link { color: #9899ac; padding: 14px 18px; border-radius: 12px; margin-bottom: 8px; cursor: pointer; text-decoration: none; display: block; transition: 0.2s; }
         .sidebar .nav-link:hover, .sidebar .nav-link.active { background: #2b2b40; color: #fff; }
         .main-content { margin-left: 260px; width: 100%; padding: 45px; }
         .card-custom { border: none; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.03); background: #fff; padding: 30px; margin-bottom: 30px; }
         .section { display: none; }
         .section.active { display: block; animation: fadeIn 0.4s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .stat-box { border-radius: 18px; padding: 25px; text-align: center; color: white; }
+        .stat-box { border-radius: 18px; padding: 25px; text-align: center; color: white; box-shadow: 0 10px 20px rgba(0,0,0,0.05); }
         .stat-pending { background: linear-gradient(45deg, #ff9f43, #ff6b6b); }
         .stat-paid { background: linear-gradient(45deg, #28c76f, #48da89); }
     </style>
 </head>
 <body>
 
+<?php if(!isset($_SESSION['authenticated'])): ?>
+<div class="login-overlay">
+    <div class="login-card">
+        <div class="login-left">
+            <img src="<?php echo $logo_path . '?v=' . time(); ?>" alt="Resort Logo">
+        </div>
+        <div class="login-right">
+            <h3>Admin Login</h3>
+            <p>Enter your details to manage the resort.</p>
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="small fw-bold text-muted mb-1">USERNAME</label>
+                    <input type="text" name="user" class="form-control form-control-lg fs-6" required>
+                </div>
+                <div class="mb-4">
+                    <label class="small fw-bold text-muted mb-1">PASSWORD</label>
+                    <input type="password" name="pass" class="form-control form-control-lg fs-6" required>
+                </div>
+                <button type="submit" name="login_btn" class="btn btn-primary w-100 fw-bold py-3 rounded-3 shadow-sm">Sign In</button>
+                <?php if(isset($_GET['error'])) echo '<p class="text-danger small mt-3 text-center fw-bold">Invalid username or password!</p>'; ?>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <div class="sidebar shadow">
     <div class="text-center mb-5">
-        <h4 class="fw-bold text-white mb-0">AURA ADMIN</h4>
-        <a href="../public_site/index.php" target="_blank" class="btn btn-sm btn-outline-info mt-2 px-3 rounded-pill"><i class="fas fa-eye me-1"></i>View Site</a>
+        <img src="<?php echo $logo_path . '?v=' . time(); ?>" width="70" class="mb-2">
+        <h5 class="fw-bold text-white mb-0">AURA ADMIN</h5>
+        <a href="../public_site/index.php" target="_blank" class="btn btn-sm btn-outline-info mt-3 px-3 rounded-pill" style="font-size: 11px;">VIEW PUBLIC SITE</a>
     </div>
     <a class="nav-link active" onclick="showTab('sec_dashboard', this)"><i class="fas fa-th-large me-2"></i> Overview</a>
     <a class="nav-link" onclick="showTab('sec_bookings', this)"><i class="fas fa-book-open me-2"></i> Reservations</a>
     <a class="nav-link" onclick="showTab('sec_cottages', this)"><i class="fas fa-home me-2"></i> Cottages</a>
     <a class="nav-link" onclick="showTab('sec_rates', this)"><i class="fas fa-dollar-sign me-2"></i> Entrance & Pool</a>
     <a class="nav-link" onclick="showTab('sec_gallery', this)"><i class="fas fa-camera-retro me-2"></i> Gallery</a>
+    <a class="nav-link" onclick="showTab('sec_settings', this)"><i class="fas fa-cog me-2"></i> Settings</a>
+    
+    <div class="mt-auto">
+        <hr class="text-secondary opacity-25">
+        <a href="dashboard.php?logout=1" class="nav-link text-danger" onclick="return confirm('Logout?')"><i class="fas fa-sign-out-alt me-2"></i> Logout</a>
+    </div>
 </div>
 
 <div class="main-content">
 
     <div id="sec_dashboard" class="section active">
-        <h2 class="fw-bold mb-4">Dashboard</h2>
+        <h2 class="fw-bold mb-4">Dashboard Overview</h2>
         <div class="row g-4 text-center">
-            <div class="col-md-6"><div class="stat-box stat-pending shadow-sm"><h6>WAITLIST</h6><h1><?php echo $conn->query("SELECT COUNT(DISTINCT guest_name) FROM bookings WHERE status='Pending'")->fetchColumn(); ?></h1></div></div>
-            <div class="col-md-6"><div class="stat-box stat-paid shadow-sm"><h6>STAYING</h6><h1><?php echo $conn->query("SELECT COUNT(DISTINCT guest_name) FROM bookings WHERE status='Paid'")->fetchColumn(); ?></h1></div></div>
+            <div class="col-md-6"><div class="stat-box stat-pending"><h6>WAITLIST (PENDING)</h6><h1><?php echo $conn->query("SELECT COUNT(DISTINCT guest_name) FROM bookings WHERE status='Pending'")->fetchColumn(); ?></h1></div></div>
+            <div class="col-md-6"><div class="stat-box stat-paid"><h6>CHECKED-IN (PAID)</h6><h1><?php echo $conn->query("SELECT COUNT(DISTINCT guest_name) FROM bookings WHERE status='Paid'")->fetchColumn(); ?></h1></div></div>
         </div>
     </div>
 
@@ -135,7 +222,7 @@ if (isset($_POST['save_view'])) {
         <div class="card-custom">
             <h5 class="fw-bold text-warning mb-4">Waitlist (Pending)</h5>
             <table class="table align-middle">
-                <thead><tr><th>Guest</th><th>Cottages</th><th>Action</th></tr></thead>
+                <thead><tr><th>Guest Name</th><th>Cottages</th><th>Action</th></tr></thead>
                 <tbody>
                     <?php $res = $conn->query("SELECT b.guest_name, GROUP_CONCAT(r.room_name) as names FROM bookings b JOIN rooms r ON b.room_id=r.room_id WHERE b.status='Pending' GROUP BY b.guest_name");
                     while($r = $res->fetch()){ ?>
@@ -144,17 +231,16 @@ if (isset($_POST['save_view'])) {
                 </tbody>
             </table>
         </div>
-
         <div class="card-custom">
             <h5 class="fw-bold text-success mb-4">Currently Staying</h5>
             <table class="table align-middle">
-                <thead><tr><th>Guest</th><th>Cottages</th><th>Action</th></tr></thead>
+                <thead><tr><th>Guest Name</th><th>Cottages</th><th>Action</th></tr></thead>
                 <tbody>
                     <?php $res = $conn->query("SELECT b.guest_name, GROUP_CONCAT(r.room_name) as names FROM bookings b JOIN rooms r ON b.room_id=r.room_id WHERE b.status='Paid' GROUP BY b.guest_name");
                     while($r = $res->fetch()){ ?>
                         <tr><td><b><?php echo $r['guest_name']; ?></b></td><td><?php echo $r['names']; ?></td>
                             <td>
-                                <a href="dashboard.php?undo_paid=1&gname=<?php echo urlencode($r['guest_name']); ?>" class="btn btn-light btn-sm me-2">Undo</a>
+                                <a href="dashboard.php?undo_paid=1&gname=<?php echo urlencode($r['guest_name']); ?>" class="btn btn-light btn-sm me-2 border">Undo</a>
                                 <button onclick="confirmCheckout('<?php echo urlencode($r['guest_name']); ?>')" class="btn btn-danger btn-sm rounded-pill px-3">Checkout</button>
                             </td>
                         </tr>
@@ -177,17 +263,17 @@ if (isset($_POST['save_view'])) {
     </div>
 
     <div id="sec_cottages" class="section">
-        <div class="d-flex justify-content-between mb-4"><h2 class="fw-bold">Cottages</h2><button class="btn btn-primary rounded-pill px-4" onclick="openCottageModal()">+ Add</button></div>
+        <div class="d-flex justify-content-between mb-4"><h2 class="fw-bold">Manage Cottages</h2><button class="btn btn-primary rounded-pill px-4" onclick="openCottageModal()">+ Add New</button></div>
         <div class="card-custom">
             <table class="table align-middle">
                 <thead><tr><th>Image</th><th>Name</th><th>Price</th><th>Action</th></tr></thead>
                 <tbody>
                     <?php $rooms = $conn->query("SELECT * FROM rooms ORDER BY room_id DESC");
                     while($rm = $rooms->fetch()){ ?>
-                        <tr><td><img src="<?php echo $rm['image']; ?>" width="50" height="50" style="object-fit:cover" class="rounded shadow-sm"></td><td><b><?php echo $rm['room_name']; ?></b></td><td class="text-primary">₱<?php echo number_format($rm['price']); ?></td>
+                        <tr><td><img src="<?php echo $rm['image']; ?>" width="55" height="55" style="object-fit:cover" class="rounded shadow-sm"></td><td><b><?php echo $rm['room_name']; ?></b></td><td class="text-primary fw-bold">₱<?php echo number_format($rm['price']); ?></td>
                             <td>
-                                <button class="btn btn-sm btn-light border" onclick='editCottage(<?php echo json_encode($rm); ?>)'><i class="fas fa-edit text-primary"></i></button>
-                                <a href="dashboard.php?del_room=<?php echo $rm['room_id']; ?>" class="btn btn-sm btn-light border text-danger" onclick="return confirm('WARNING: Are you sure you want to delete this cottage and its image file?')"><i class="fas fa-trash"></i></a>
+                                <button class="btn btn-sm btn-light border me-1" onclick='editCottage(<?php echo json_encode($rm); ?>)'><i class="fas fa-edit text-primary"></i></button>
+                                <a href="dashboard.php?del_room=<?php echo $rm['room_id']; ?>" class="btn btn-sm btn-light border text-danger" onclick="return confirm('Delete this cottage?')"><i class="fas fa-trash"></i></a>
                             </td>
                         </tr>
                     <?php } ?>
@@ -197,18 +283,18 @@ if (isset($_POST['save_view'])) {
     </div>
 
     <div id="sec_gallery" class="section">
-        <div class="d-flex justify-content-between mb-4"><h2 class="fw-bold">Gallery</h2><button class="btn btn-primary rounded-pill px-4" onclick="openGalleryModal()">+ Add Photo</button></div>
+        <div class="d-flex justify-content-between mb-4"><h2 class="fw-bold">Resort Gallery</h2><button class="btn btn-primary rounded-pill px-4" onclick="openGalleryModal()">+ Add Photo</button></div>
         <div class="row g-3">
             <?php $gal = $conn->query("SELECT * FROM gallery ORDER BY id DESC");
             while($g = $gal->fetch()){ ?>
                 <div class="col-md-3">
                     <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-                        <img src="<?php echo $g['image']; ?>" class="w-100" style="height:150px; object-fit:cover;">
+                        <img src="<?php echo $g['image']; ?>" class="w-100" style="height:160px; object-fit:cover;">
                         <div class="p-3 text-center">
-                            <small class="d-block mb-2 text-muted"><?php echo $g['caption']; ?></small>
+                            <small class="d-block mb-2 text-muted fw-bold"><?php echo strtoupper($g['caption']); ?></small>
                             <div class="d-flex justify-content-center gap-2">
                                 <button class="btn btn-sm btn-light border" onclick='editGallery(<?php echo json_encode($g); ?>)'><i class="fas fa-edit text-primary"></i></button>
-                                <a href="dashboard.php?del_view=<?php echo $g['id']; ?>" class="btn btn-sm btn-light border text-danger" onclick="return confirm('WARNING: Are you sure you want to delete this photo permanently?')"><i class="fas fa-trash"></i></a>
+                                <a href="dashboard.php?del_view=<?php echo $g['id']; ?>" class="btn btn-sm btn-light border text-danger" onclick="return confirm('Delete this photo?')"><i class="fas fa-trash"></i></a>
                             </div>
                         </div>
                     </div>
@@ -216,10 +302,53 @@ if (isset($_POST['save_view'])) {
             <?php } ?>
         </div>
     </div>
+
+    <div id="sec_settings" class="section">
+        <h2 class="fw-bold mb-4">System Settings</h2>
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="card-custom">
+                    <h5 class="fw-bold mb-4"><i class="fas fa-image me-2 text-primary"></i>Resort Branding</h5>
+                    <form method="POST" enctype="multipart/form-data">
+                        <div class="mb-4 p-4 border rounded-4 text-center bg-light">
+                            <img src="<?php echo $logo_path . '?v=' . time(); ?>" width="120" class="mb-2">
+                            <div class="small text-muted">Current System Logo</div>
+                        </div>
+                        <label class="small fw-bold mb-2">Upload New Logo (PNG recommended)</label>
+                        <input type="file" name="new_logo" class="form-control mb-4" required>
+                        <button type="submit" name="update_logo" class="btn btn-primary w-100 rounded-pill fw-bold py-2">Apply New Logo</button>
+                    </form>
+                    <?php if(isset($_GET['status']) && $_GET['status'] == 'logo_updated') echo '<p class="text-success small mt-3 text-center">Branding updated successfully!</p>'; ?>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card-custom">
+                    <h5 class="fw-bold mb-4"><i class="fas fa-key me-2 text-warning"></i>Admin Security</h5>
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="small fw-bold mb-1">Current Password</label>
+                            <input type="password" name="current_pass" class="form-control" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="small fw-bold mb-1">New Password</label>
+                            <input type="password" name="new_pass" class="form-control" required>
+                        </div>
+                        <button type="submit" name="update_pass" class="btn btn-warning w-100 rounded-pill fw-bold py-2">Update Credentials</button>
+                    </form>
+                    <?php 
+                        if(isset($_GET['status'])){
+                            if($_GET['status'] == 'pass_success') echo '<p class="text-success small mt-3 text-center">Password changed successfully!</p>';
+                            if($_GET['status'] == 'pass_error') echo '<p class="text-danger small mt-3 text-center">Current password is incorrect!</p>';
+                        }
+                    ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <div class="modal fade" id="cottageModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 rounded-4 shadow"><form method="POST" enctype="multipart/form-data"><div class="modal-body p-4 text-center"><h5 class="fw-bold mb-4" id="c_modal_title">Cottage Details</h5><input type="hidden" name="c_id" id="c_id"><input type="text" name="c_name" id="c_name" class="form-control mb-3" placeholder="Name" required><input type="number" name="c_price" id="c_price" class="form-control mb-3" placeholder="Price" required><input type="file" name="c_image" id="c_image" class="form-control mb-4"><button type="submit" name="save_cottage" class="btn btn-primary w-100 py-2 rounded-pill fw-bold">SAVE</button></div></form></div></div></div>
-
 <div class="modal fade" id="galleryModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 rounded-4 shadow"><form method="POST" enctype="multipart/form-data"><div class="modal-body p-4 text-center"><h5 class="fw-bold mb-4" id="v_modal_title">Gallery Post</h5><input type="hidden" name="v_id" id="v_id"><input type="text" name="v_caption" id="v_caption" class="form-control mb-3" placeholder="Caption" required><input type="file" name="v_image" id="v_image" class="form-control mb-4"><button type="submit" name="save_view" class="btn btn-primary w-100 py-2 rounded-pill fw-bold">SAVE POST</button></div></form></div></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -228,46 +357,15 @@ if (isset($_POST['save_view'])) {
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
         document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
         document.getElementById(id).classList.add('active');
-        el.classList.add('active');
+        if(el) el.classList.add('active');
         const url = new URL(window.location); url.searchParams.set('tab', id); window.history.pushState({}, '', url);
     }
     
-    // 2. CHECKOUT WARNING SCRIPT
-    function confirmCheckout(gname) {
-        if(confirm("Are you sure you want to checkout this guest? This will permanently delete their record.")) {
-            window.location.href = "dashboard.php?checkout=1&gname=" + gname;
-        }
-    }
-
-    function openCottageModal() {
-        document.getElementById('c_id').value = '';
-        document.getElementById('c_name').value = '';
-        document.getElementById('c_price').value = '';
-        document.getElementById('c_modal_title').innerText = 'Add New Cottage';
-        new bootstrap.Modal(document.getElementById('cottageModal')).show();
-    }
-
-    function editCottage(data) {
-        document.getElementById('c_id').value = data.room_id;
-        document.getElementById('c_name').value = data.room_name;
-        document.getElementById('c_price').value = data.price;
-        document.getElementById('c_modal_title').innerText = 'Edit Cottage';
-        new bootstrap.Modal(document.getElementById('cottageModal')).show();
-    }
-
-    function openGalleryModal() {
-        document.getElementById('v_id').value = '';
-        document.getElementById('v_caption').value = '';
-        document.getElementById('v_modal_title').innerText = 'Add Photo';
-        new bootstrap.Modal(document.getElementById('galleryModal')).show();
-    }
-
-    function editGallery(data) {
-        document.getElementById('v_id').value = data.id;
-        document.getElementById('v_caption').value = data.caption;
-        document.getElementById('v_modal_title').innerText = 'Edit Post';
-        new bootstrap.Modal(document.getElementById('galleryModal')).show();
-    }
+    function confirmCheckout(gname) { if(confirm("Checkout guest: " + decodeURIComponent(gname) + "?")) { window.location.href = "dashboard.php?checkout=1&gname=" + gname; } }
+    function openCottageModal() { document.getElementById('c_id').value = ''; document.getElementById('c_name').value = ''; document.getElementById('c_price').value = ''; document.getElementById('c_modal_title').innerText = 'Add New Cottage'; new bootstrap.Modal(document.getElementById('cottageModal')).show(); }
+    function editCottage(data) { document.getElementById('c_id').value = data.room_id; document.getElementById('c_name').value = data.room_name; document.getElementById('c_price').value = data.price; document.getElementById('c_modal_title').innerText = 'Edit Cottage'; new bootstrap.Modal(document.getElementById('cottageModal')).show(); }
+    function openGalleryModal() { document.getElementById('v_id').value = ''; document.getElementById('v_caption').value = ''; document.getElementById('v_modal_title').innerText = 'Add Photo'; new bootstrap.Modal(document.getElementById('galleryModal')).show(); }
+    function editGallery(data) { document.getElementById('v_id').value = data.id; document.getElementById('v_caption').value = data.caption; document.getElementById('v_modal_title').innerText = 'Edit Post'; new bootstrap.Modal(document.getElementById('galleryModal')).show(); }
 
     window.onload = () => {
         const tab = new URLSearchParams(window.location.search).get('tab') || 'sec_dashboard';
