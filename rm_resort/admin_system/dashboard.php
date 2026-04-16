@@ -4,11 +4,9 @@ require_once '../public_site/db_connect.php';
 
 // --- 1. ALL-IN-ONE AUTH & SETTINGS LOGIC ---
 
-// Default Credentials (Dito mo i-set ang admin details mo)
 $admin_user = "aura";
 $admin_pass = "auraG5"; 
 
-// LOGIN PROCESS
 if (isset($_POST['login_btn'])) {
     if ($_POST['user'] === $admin_user && $_POST['pass'] === $admin_pass) {
         $_SESSION['authenticated'] = true;
@@ -18,20 +16,16 @@ if (isset($_POST['login_btn'])) {
     }
 }
 
-// LOGOUT PROCESS
 if (isset($_GET['logout'])) {
     session_destroy();
     header("Location: dashboard.php"); exit();
 }
 
-// LOGO UPDATE LOGIC (FIXED: Automatic Update)
-$logo_path = "../public_site/assets/logo.png"; // <-- Siguraduhin na existing itong folder/file na ito
+$logo_path = "../public_site/assets/logo.png"; 
 if (isset($_POST['update_logo'])) {
     if(!empty($_FILES["new_logo"]["name"])){
         $target_dir = "../public_site/assets/";
         if(!is_dir($target_dir)) mkdir($target_dir, 0777, true);
-        
-        // Pinalitan natin ang logic para i-overwrite ang luma
         $target_file = $target_dir . "logo.png"; 
         if(move_uploaded_file($_FILES["new_logo"]["tmp_name"], $target_file)){
             header("Location: dashboard.php?tab=sec_settings&status=logo_updated"); exit();
@@ -39,21 +33,16 @@ if (isset($_POST['update_logo'])) {
     }
 }
 
-// CHANGE PASSWORD LOGIC
 if (isset($_POST['update_pass'])) {
     $curr = $_POST['current_pass'];
-    $new = $_POST['new_pass'];
-    
-    // Check if current password is correct
     if($curr === $admin_pass) {
-        // NOTE: Dahil static ang $admin_pass sa taas, dito mo dapat i-update sa DB kung may admin table ka.
         header("Location: dashboard.php?tab=sec_settings&status=pass_success"); exit();
     } else {
         header("Location: dashboard.php?tab=sec_settings&status=pass_error"); exit();
     }
 }
 
-// --- 2. ORIGINAL DASHBOARD LOGIC (UNTOUCHED) ---
+// --- 2. DASHBOARD LOGIC ---
 $rates_file = '../public_site/rates.json';
 $resort_rates = ['day_adult'=>'100','day_teen'=>'80','day_kid'=>'50','night_adult'=>'150','night_teen'=>'120','night_kid'=>'80','pool_adult'=>'50','pool_kid'=>'30'];
 if(file_exists($rates_file)) { $resort_rates = array_merge($resort_rates, json_decode(file_get_contents($rates_file), true)); }
@@ -76,6 +65,7 @@ if(isset($_GET['checkout'])) {
     $conn->prepare("DELETE FROM bookings WHERE guest_name=?")->execute([$_GET['gname']]); 
     header("Location: dashboard.php?tab=sec_bookings"); exit(); 
 }
+// Delete Cottage/Room
 if(isset($_GET['del_room'])) { 
     $stmt = $conn->prepare("SELECT image FROM rooms WHERE room_id = ?");
     $stmt->execute([$_GET['del_room']]);
@@ -84,6 +74,7 @@ if(isset($_GET['del_room'])) {
     $conn->prepare("DELETE FROM rooms WHERE room_id=?")->execute([$_GET['del_room']]); 
     header("Location: dashboard.php?tab=sec_cottages"); exit(); 
 }
+// Delete Gallery Image
 if(isset($_GET['del_view'])) { 
     $stmt = $conn->prepare("SELECT image FROM gallery WHERE id = ?");
     $stmt->execute([$_GET['del_view']]);
@@ -92,6 +83,7 @@ if(isset($_GET['del_view'])) {
     $conn->prepare("DELETE FROM gallery WHERE id=?")->execute([$_GET['del_view']]); 
     header("Location: dashboard.php?tab=sec_gallery"); exit(); 
 }
+
 if (isset($_POST['save_cottage'])) {
     $name = $_POST['c_name']; $price = $_POST['c_price'];
     if(!empty($_POST['c_id'])){
@@ -108,6 +100,7 @@ if (isset($_POST['save_cottage'])) {
     }
     header("Location: dashboard.php?tab=sec_cottages"); exit();
 }
+
 if (isset($_POST['save_view'])) {
     $cap = $_POST['v_caption'];
     if(!empty($_POST['v_id'])){
@@ -124,6 +117,9 @@ if (isset($_POST['save_view'])) {
     }
     header("Location: dashboard.php?tab=sec_gallery"); exit();
 }
+
+// Get Notification Count (Pending Bookings)
+$notif_count = $conn->query("SELECT COUNT(DISTINCT guest_name) FROM bookings WHERE status='Pending'")->fetchColumn();
 ?>
 
 <!DOCTYPE html>
@@ -136,20 +132,15 @@ if (isset($_POST['save_view'])) {
     <style>
         :root { --dark: #1e1e2d; --primary: #007bff; }
         body { background: #f4f6f9; font-family: 'Inter', sans-serif; display: flex; min-height: 100vh; margin:0; }
-
-        /* --- LOGIN FORM MINIMIZED --- */
         .login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f4f6f9; z-index: 9999; display: flex; align-items: center; justify-content: center; }
         .login-card { width: 750px; display: flex; background: white; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.08); border: 1px solid #eee; }
         .login-left { flex: 1.2; background: #fff; display: flex; align-items: center; justify-content: center; padding: 40px; border-right: 1px solid #f8f9fa; }
         .login-left img { max-width: 100%; height: auto; max-height: 220px; object-fit: contain; }
         .login-right { flex: 1; padding: 50px 45px; }
-        .login-right h3 { font-weight: 800; color: var(--dark); margin-bottom: 8px; }
-        .login-right p { color: #888; font-size: 0.9rem; margin-bottom: 30px; }
-
-        /* --- DASHBOARD UI (ORIGINAL) --- */
-        .sidebar { width: 260px; background: var(--dark); min-height: 100vh; position: fixed; color: white; padding: 25px 15px; display: flex; flex-direction: column; }
-        .sidebar .nav-link { color: #9899ac; padding: 14px 18px; border-radius: 12px; margin-bottom: 8px; cursor: pointer; text-decoration: none; display: block; transition: 0.2s; }
+        .sidebar { width: 260px; background: var(--dark); min-height: 100vh; position: fixed; color: white; padding: 25px 15px; display: flex; flex-direction: column; z-index: 100; }
+        .sidebar .nav-link { color: #9899ac; padding: 14px 18px; border-radius: 12px; margin-bottom: 8px; cursor: pointer; text-decoration: none; display: flex; align-items: center; justify-content: space-between; transition: 0.2s; }
         .sidebar .nav-link:hover, .sidebar .nav-link.active { background: #2b2b40; color: #fff; }
+        .badge-notif { background: #ff4d4d; color: white; font-size: 10px; padding: 4px 8px; border-radius: 50px; font-weight: bold; }
         .main-content { margin-left: 260px; width: 100%; padding: 45px; }
         .card-custom { border: none; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.03); background: #fff; padding: 30px; margin-bottom: 30px; }
         .section { display: none; }
@@ -194,16 +185,23 @@ if (isset($_POST['save_view'])) {
         <h5 class="fw-bold text-white mb-0">AURA ADMIN</h5>
         <a href="../public_site/index.php" target="_blank" class="btn btn-sm btn-outline-info mt-3 px-3 rounded-pill" style="font-size: 11px;">VIEW PUBLIC SITE</a>
     </div>
-    <a class="nav-link active" onclick="showTab('sec_dashboard', this)"><i class="fas fa-th-large me-2"></i> Overview</a>
-    <a class="nav-link" onclick="showTab('sec_bookings', this)"><i class="fas fa-book-open me-2"></i> Reservations</a>
-    <a class="nav-link" onclick="showTab('sec_cottages', this)"><i class="fas fa-home me-2"></i> Cottages</a>
-    <a class="nav-link" onclick="showTab('sec_rates', this)"><i class="fas fa-dollar-sign me-2"></i> Entrance & Pool</a>
-    <a class="nav-link" onclick="showTab('sec_gallery', this)"><i class="fas fa-camera-retro me-2"></i> Gallery</a>
-    <a class="nav-link" onclick="showTab('sec_settings', this)"><i class="fas fa-cog me-2"></i> Settings</a>
+    <a class="nav-link active" onclick="showTab('sec_dashboard', this)"><span><i class="fas fa-th-large me-2"></i> Overview</span></a>
+    
+    <a class="nav-link" onclick="showTab('sec_bookings', this)">
+        <span><i class="fas fa-book-open me-2"></i> Reservations</span>
+        <?php if($notif_count > 0): ?>
+            <span class="badge-notif"><?php echo $notif_count; ?></span>
+        <?php endif; ?>
+    </a>
+
+    <a class="nav-link" onclick="showTab('sec_cottages', this)"><span><i class="fas fa-home me-2"></i> Cottages</span></a>
+    <a class="nav-link" onclick="showTab('sec_rates', this)"><span><i class="fas fa-dollar-sign me-2"></i> Entrance & Pool</span></a>
+    <a class="nav-link" onclick="showTab('sec_gallery', this)"><span><i class="fas fa-camera-retro me-2"></i> Gallery</span></a>
+    <a class="nav-link" onclick="showTab('sec_settings', this)"><span><i class="fas fa-cog me-2"></i> Settings</span></a>
     
     <div class="mt-auto">
         <hr class="text-secondary opacity-25">
-        <a href="dashboard.php?logout=1" class="nav-link text-danger" onclick="return confirm('Logout?')"><i class="fas fa-sign-out-alt me-2"></i> Logout</a>
+        <a href="dashboard.php?logout=1" class="nav-link text-danger" onclick="return confirm('Logout?')"><span><i class="fas fa-sign-out-alt me-2"></i> Logout</span></a>
     </div>
 </div>
 
@@ -212,33 +210,45 @@ if (isset($_POST['save_view'])) {
     <div id="sec_dashboard" class="section active">
         <h2 class="fw-bold mb-4">Dashboard Overview</h2>
         <div class="row g-4 text-center">
-            <div class="col-md-6"><div class="stat-box stat-pending"><h6>WAITLIST (PENDING)</h6><h1><?php echo $conn->query("SELECT COUNT(DISTINCT guest_name) FROM bookings WHERE status='Pending'")->fetchColumn(); ?></h1></div></div>
+            <div class="col-md-6"><div class="stat-box stat-pending"><h6>WAITLIST (PENDING)</h6><h1><?php echo $notif_count; ?></h1></div></div>
             <div class="col-md-6"><div class="stat-box stat-paid"><h6>CHECKED-IN (PAID)</h6><h1><?php echo $conn->query("SELECT COUNT(DISTINCT guest_name) FROM bookings WHERE status='Paid'")->fetchColumn(); ?></h1></div></div>
         </div>
     </div>
 
     <div id="sec_bookings" class="section">
-        <h2 class="fw-bold mb-4">Reservations</h2>
+        <h2 class="fw-bold mb-4">Reservations Management</h2>
         <div class="card-custom">
-            <h5 class="fw-bold text-warning mb-4">Waitlist (Pending)</h5>
+            <h5 class="fw-bold text-warning mb-4"><i class="fas fa-clock me-2"></i>New Bookings (Waitlist)</h5>
             <table class="table align-middle">
-                <thead><tr><th>Guest Name</th><th>Cottages</th><th>Action</th></tr></thead>
+                <thead><tr><th>Guest Name</th><th>Date of Visit</th><th>Cottages</th><th>Action</th></tr></thead>
                 <tbody>
-                    <?php $res = $conn->query("SELECT b.guest_name, GROUP_CONCAT(r.room_name) as names FROM bookings b JOIN rooms r ON b.room_id=r.room_id WHERE b.status='Pending' GROUP BY b.guest_name");
+                    <?php 
+                    // Query improved to show check_in date
+                    $res = $conn->query("SELECT b.guest_name, b.check_in, GROUP_CONCAT(r.room_name) as names FROM bookings b JOIN rooms r ON b.room_id=r.room_id WHERE b.status='Pending' GROUP BY b.guest_name, b.check_in ORDER BY b.check_in ASC");
                     while($r = $res->fetch()){ ?>
-                        <tr><td><b><?php echo $r['guest_name']; ?></b></td><td><?php echo $r['names']; ?></td><td><a href="dashboard.php?mark_paid=1&gname=<?php echo urlencode($r['guest_name']); ?>" class="btn btn-success btn-sm rounded-pill px-3">Mark Paid</a></td></tr>
+                        <tr>
+                            <td><b><?php echo $r['guest_name']; ?></b></td>
+                            <td><span class="badge bg-light text-dark border"><?php echo date('M d, Y', strtotime($r['check_in'])); ?></span></td>
+                            <td><?php echo $r['names']; ?></td>
+                            <td><a href="dashboard.php?mark_paid=1&gname=<?php echo urlencode($r['guest_name']); ?>" class="btn btn-success btn-sm rounded-pill px-3 shadow-sm">Confirm & Paid</a></td>
+                        </tr>
                     <?php } ?>
+                    <?php if($notif_count == 0) echo '<tr><td colspan="4" class="text-center text-muted py-4">No pending reservations.</td></tr>'; ?>
                 </tbody>
             </table>
         </div>
+
         <div class="card-custom">
-            <h5 class="fw-bold text-success mb-4">Currently Staying</h5>
+            <h5 class="fw-bold text-success mb-4"><i class="fas fa-check-circle me-2"></i>Currently Staying / Paid</h5>
             <table class="table align-middle">
-                <thead><tr><th>Guest Name</th><th>Cottages</th><th>Action</th></tr></thead>
+                <thead><tr><th>Guest Name</th><th>Visit Date</th><th>Cottages</th><th>Action</th></tr></thead>
                 <tbody>
-                    <?php $res = $conn->query("SELECT b.guest_name, GROUP_CONCAT(r.room_name) as names FROM bookings b JOIN rooms r ON b.room_id=r.room_id WHERE b.status='Paid' GROUP BY b.guest_name");
+                    <?php $res = $conn->query("SELECT b.guest_name, b.check_in, GROUP_CONCAT(r.room_name) as names FROM bookings b JOIN rooms r ON b.room_id=r.room_id WHERE b.status='Paid' GROUP BY b.guest_name, b.check_in");
                     while($r = $res->fetch()){ ?>
-                        <tr><td><b><?php echo $r['guest_name']; ?></b></td><td><?php echo $r['names']; ?></td>
+                        <tr>
+                            <td><b><?php echo $r['guest_name']; ?></b></td>
+                            <td><span class="badge bg-light text-success border"><?php echo date('M d, Y', strtotime($r['check_in'])); ?></span></td>
+                            <td><?php echo $r['names']; ?></td>
                             <td>
                                 <a href="dashboard.php?undo_paid=1&gname=<?php echo urlencode($r['guest_name']); ?>" class="btn btn-light btn-sm me-2 border">Undo</a>
                                 <button onclick="confirmCheckout('<?php echo urlencode($r['guest_name']); ?>')" class="btn btn-danger btn-sm rounded-pill px-3">Checkout</button>
